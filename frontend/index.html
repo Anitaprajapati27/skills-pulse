@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skills Pulse - Verify Email</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f3f4f6; display: flex; justify-content: center; padding-top: 60px; }
+    .card { background: #fff; padding: 28px; border-radius: 10px; width: 340px; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+    h2 { margin-top: 0; }
+    input { width: 100%; padding: 10px; margin: 6px 0 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+    button { width: 100%; padding: 10px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; margin-bottom: 8px; }
+    button.secondary { background: #6b7280; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    #message { margin-top: 10px; font-size: 14px; min-height: 20px; }
+    .success { color: #15803d; } .error { color: #b91c1c; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Skills Pulse</h2>
+
+    <div id="step1">
+      <label>Name</label>
+      <input id="name" type="text" placeholder="Your name" />
+      <label>Email</label>
+      <input id="email" type="email" placeholder="you@example.com" />
+      <button id="sendBtn">Send OTP</button>
+    </div>
+
+    <div id="step2" class="hidden">
+      <label>Enter 6-digit OTP</label>
+      <input id="otp" type="text" maxlength="6" inputmode="numeric" placeholder="123456" />
+      <button id="verifyBtn">Verify OTP</button>
+      <button id="resendBtn" class="secondary">Resend OTP</button>
+    </div>
+
+    <div id="message"></div>
+  </div>
+
+  <script>
+    const API = '/api/auth';
+    const $ = (id) => document.getElementById(id);
+
+    function showMessage(text, ok) {
+      const m = $('message');
+      m.textContent = text;
+      m.className = ok ? 'success' : 'error';
+    }
+
+    // Reusable POST helper using the Fetch API
+    async function post(path, body) {
+      const res = await fetch(API + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      return { ok: res.ok, data };
+    }
+
+    // Disables a button while the request runs (loading state)
+    async function withLoading(btn, label, fn) {
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = label;
+      try { await fn(); }
+      catch (e) { showMessage('Cannot reach the server', false); }
+      finally { btn.disabled = false; btn.textContent = original; }
+    }
+
+    $('sendBtn').addEventListener('click', () => withLoading($('sendBtn'), 'Sending...', async () => {
+      const name = $('name').value.trim();
+      const email = $('email').value.trim();
+
+      const reg = await post('/register', { name, email });
+      if (!reg.ok) return showMessage(reg.data.message, false);
+
+      const sent = await post('/send-otp', { email });
+      showMessage(sent.data.message, sent.ok);
+      if (sent.ok) {
+        $('step1').classList.add('hidden');
+        $('step2').classList.remove('hidden');
+      }
+    }));
+
+    $('verifyBtn').addEventListener('click', () => withLoading($('verifyBtn'), 'Verifying...', async () => {
+      const r = await post('/verify-otp', { email: $('email').value.trim(), otp: $('otp').value.trim() });
+      showMessage(r.data.message, r.ok);
+    }));
+
+    $('resendBtn').addEventListener('click', () => withLoading($('resendBtn'), 'Resending...', async () => {
+      const r = await post('/resend-otp', { email: $('email').value.trim() });
+      showMessage(r.data.message, r.ok);
+    }));
+  </script>
+</body>
+</html>
